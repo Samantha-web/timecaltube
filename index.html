@@ -1,0 +1,309 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Calculator For Tube Cutting</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #footer {
+      text-align: center;
+      margin-top: 20px;
+      padding: 10px;
+      background-color: hsl(80, 13%, 95%);
+      border-top: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-4xl">
+    <h1 class="text-2xl font-bold mb-6 text-center">Time Calculator For Tube Cutting</h1>
+    
+    <table class="w-full border-collapse">
+      <thead>
+        <tr class="bg-blue-600 text-white">
+          <th class="p-2 border">Item Code</th>
+          <th class="p-2 border">Unit</th>
+          <th class="p-2 border">Capacity per Hour</th>
+          <th class="p-2 border">MC Status (Saw / Blade)</th>
+          <th class="p-2 border">Number of Pcs</th>
+          <th class="p-2 border">Required Hours</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- Rows will be populated by JavaScript -->
+      </tbody>
+      <tfoot>
+        <tr class="bg-gray-200">
+          <td colspan="5" class="p-2 border text-right font-semibold">Total</td>
+          <td id="totalHours" class="p-2 border text-center">0</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <br />
+    <hr />
+    <footer id="footer">
+      Copyright Samantha 2025 © All rights reserved.<br />
+      <p>
+        <a href="mailto:s2880882@gmail.com">Email: s2880882@gmail.com (Samantha)</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // Item data from provided list
+    const items = [
+      { code: 'A6061R1.6x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.6x19-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.6x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'A6061R1.6x38.1-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061R1.6x42-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R1.6x44-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.8x19-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.8x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'A6061R1.8x25.4-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R1.8x27-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R1.8x28.6-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R1.8x31.8-5.8', unit: 'Pcs', capacity: 189 },
+      { code: 'A6061R1.8x34.9-5.8', unit: 'Pcs', capacity: 277 },
+      { code: 'A6061R1.8x38.1-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061R1.8x42-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R1.8x44-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x48-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x50.8-5.8', unit: 'Pcs', capacity: 200 },
+      { code: 'A6061R2.2x22.2-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R2.2x28.6-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R2.2x31.8-5.8', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061R2.2x34.9-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R2.2x38.1-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R2.2x50.8-5.8', unit: 'Pcs', capacity: 164 },
+      { code: 'A6061RS1.6x34.9-2.9', unit: 'Pcs', capacity: 277 },
+      { code: 'A6061RS2.0x34.9-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061RS2.2x31.8-2.9', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061RS2.2x31.8-5.8', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061RS2.2x34.9-2.9', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061RS2.2x34.9-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061RS3.5x50-2.9', unit: 'Pcs', capacity: 80 },
+      { code: 'A6061RS3.8x37-2.9', unit: 'Pcs', capacity: 144 },
+      { code: 'A6061RS3.8x37-5.8', unit: 'Pcs', capacity: 144 },
+      { code: 'A6061RS3.8x41-2.9', unit: 'Pcs', capacity: 116 },
+      { code: 'A6061RS4.7x43-2.9', unit: 'Pcs', capacity: 103 },
+      { code: 'A6061RS4.7x43-5.8', unit: 'Pcs', capacity: 103 },
+      { code: 'A6061RS4.7x50-2.9', unit: 'Pcs', capacity: 80 },
+      { code: 'A6061RS4.7x60-2.9', unit: 'Pcs', capacity: 72 },
+      { code: 'A6061RS4.7x60-5.8', unit: 'Pcs', capacity: 72 },
+      { code: 'A6061S1.6x23x17-5.8', unit: 'Pcs', capacity: 514 },
+      { code: 'A6061S1.6x37x40-5.8', unit: 'Pcs', capacity: 200 },
+      { code: 'A6061S1.6x48.01x53.01-5.8', unit: 'Pcs', capacity: 164 },
+      { code: 'A6061S1.8x28x17-2.9', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x14-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x19.1-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'SPCCR1.2x25.4-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'SPCCR1.2x28.6-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'SPCCR1.2x31.8-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'SPCCR1.2x34-5.8', unit: 'Pcs', capacity: 257 },
+      { code: 'SPCCR1.2x38.1-5.8', unit: 'Pcs', capacity: 257 },
+      { code: 'SPCCR1.2x42-5.8', unit: 'Pcs', capacity: 277 },
+      { code: 'SPCCR1.2x44.5-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'SP代替
+
+System: <xaiArtifact artifact_id="657c036f-5388-40ab-9fdc-d570429f3a18" artifact_version_id="1b9d010b-7c0a-4599-a758-4fd69722c064" title="index.html" contentType="text/html">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Study Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #footer {
+      text-align: center;
+      margin-top: 20px;
+      padding: 10px;
+      background-color: hsl(80, 13%, 95%);
+      border-top: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  
+
+  <script>
+    // Item data from provided list
+    const items = [
+      { code: 'A6061R1.6x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.6x19-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.6x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'A6061R1.6x38.1-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061R1.6x42-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R1.6x44-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.8x19-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'A6061R1.8x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'A6061R1.8x25.4-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R1.8x27-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R1.8x28.6-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R1.8x31.8-5.8', unit: 'Pcs', capacity: 189 },
+      { code: 'A6061R1.8x34.9-5.8', unit: 'Pcs', capacity: 277 },
+      { code: 'A6061R1.8x38.1-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061R1.8x42-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R1.8x44-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x48-5.8', unit: 'Pcs', capacity: 212 },
+      { code: 'A6061R1.8x50.8-5.8', unit: 'Pcs', capacity: 200 },
+      { code: 'A6061R2.2x22.2-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R2.2x28.6-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'A6061R2.2x31.8-5.8', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061R2.2x34.9-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061R2.2x38.1-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'A6061R2.2x50.8-5.8', unit: 'Pcs', capacity: 164 },
+      { code: 'A6061RS1.6x34.9-2.9', unit: 'Pcs', capacity: 277 },
+      { code: 'A6061RS2.0x34.9-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'A6061RS2.2x31.8-2.9', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061RS2.2x31.8-5.8', unit: 'Pcs', capacity: 327 },
+      { code: 'A6061RS2.2x34.9-2.9', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061RS2.2x34.9-5.8', unit: 'Pcs', capacity: 225 },
+      { code: 'A6061RS3.5x50-2.9', unit: 'Pcs', capacity: 80 },
+      { code: 'A6061RS3.8x37-2.9', unit: 'Pcs', capacity: 144 },
+      { code: 'A6061RS3.8x37-5.8', unit: 'Pcs', capacity: 144 },
+      { code: 'A6061RS3.8x41-2.9', unit: 'Pcs', capacity: 116 },
+      { code: 'A6061RS4.7x43-2.9', unit: 'Pcs', capacity: 103 },
+      { code: 'A6061RS4.7x43-5.8', unit: 'Pcs', capacity: 103 },
+      { code: 'A6061RS4.7x50-2.9', unit: 'Pcs', capacity: 80 },
+      { code: 'A6061RS4.7x60-2.9', unit: 'Pcs', capacity: 72 },
+      { code: 'A6061RS4.7x60-5.8', unit: 'Pcs', capacity: 72 },
+      { code: 'A6061S1.6x23x17-5.8', unit: 'Pcs', capacity: 514 },
+      { code: 'A6061S1.6x37x40-5.8', unit: 'Pcs', capacity: 200 },
+      { code: 'A6061S1.6x48.01x53.01-5.8', unit: 'Pcs', capacity: 164 },
+      { code: 'A6061S1.8x28x17-2.9', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x14-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x16-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x19.1-5.8', unit: 'Pcs', capacity: 450 },
+      { code: 'SPCCR1.2x22.2-5.8', unit: 'Pcs', capacity: 400 },
+      { code: 'SPCCR1.2x25.4-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'SPCCR1.2x28.6-5.8', unit: 'Pcs', capacity: 360 },
+      { code: 'SPCCR1.2x31.8-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'SPCCR1.2x34-5.8', unit: 'Pcs', capacity: 257 },
+      { code: 'SPCCR1.2x38.1-5.8', unit: 'Pcs', capacity: 257 },
+      { code: 'SPCCR1.2x42-5.8', unit: 'Pcs', capacity: 277 },
+      { code: 'SPCCR1.2x44.5-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'SPCCR1.2x50.8-5.8', unit: 'Pcs', capacity: 200 },
+      { code: 'SPCCR1.4x14-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'SPCCR1.4x25.4-5.8', unit: 'Pcs', capacity: 257 },
+      { code: 'SPCCR1.4x28.6-5.8', unit: 'Pcs', capacity: 240 },
+      { code: 'SPCCR1.4x31.8-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'SPCCR1.4x34-5.8', unit: 'Pcs', capacity: 277 },
+      { code: 'SPCCR1.4x38.1-5.8', unit: 'Pcs', capacity: 300 },
+      { code: 'SPCCR1.4x50.8-5.8', unit: 'Pcs', capacity: 277 }
+    ];
+
+    function populateTable() {
+      const tableBody = document.getElementById('tableBody');
+      tableBody.innerHTML = '';
+
+      for (let i = 0; i < 15; i++) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="p-2 border">
+            <select class="item-code w-full p-1 border rounded" onchange="updateRow(${i})">
+              <option value="">Select Item</option>
+              ${items.map(item => `<option value="${item.code}">${item.code}</option>`).join('')}
+            </select>
+          </td>
+          <td class="p-2 border unit"></td>
+          <td class="p-2 border capacity text-center"></td>
+          <td class="p-2 border">
+            <select class="mc-status w-full p-1 border rounded" onchange="updateRow(${i})">
+              <option value="Saw">Saw</option>
+              <option value="Blade">Blade</option>
+            </select>
+          </td>
+          <td class="p-2 border">
+            <input type="number" class="num-pcs w-full p-1 border rounded" min="0" oninput="updateRow(${i})">
+          </td>
+          <td class="p-2 border required-hours text-center"></td>
+        `;
+        tableBody.appendChild(row);
+      }
+    }
+
+    function updateRow(rowIndex) {
+      const row = document.getElementById('tableBody').rows[rowIndex];
+      const itemCode = row.querySelector('.item-code').value;
+      const numPcs = parseFloat(row.querySelector('.num-pcs').value) || 0;
+      const unitCell = row.querySelector('.unit');
+      const capacityCell = row.querySelector('.capacity');
+      const requiredHoursCell = row.querySelector('.required-hours');
+
+      if (itemCode) {
+        const item = items.find(i => i.code === itemCode);
+        unitCell.textContent = item.unit;
+        capacityCell.textContent = item.capacity;
+        const requiredHours = numPcs > 0 && item.capacity > 0 ? (numPcs / item.capacity).toFixed(2) : '';
+        requiredHoursCell.textContent = requiredHours;
+      } else {
+        unitCell.textContent = '';
+        capacityCell.textContent = '';
+        requiredHoursCell.textContent = '';
+      }
+
+      updateTotalHours();
+    }
+
+    function updateTotalHours() {
+      const rows = document.getElementById('tableBody').rows;
+      let total = 0;
+      for (let row of rows) {
+        const hours = parseFloat(row.querySelector('.required-hours').textContent) || 0;
+        total += hours;
+      }
+      document.getElementById('totalHours').textContent = total.toFixed(2);
+    }
+
+    // Initialize table
+    populateTable();
+  </script>
+</body>
+</html>
