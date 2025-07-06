@@ -1,192 +1,434 @@
-<script type="text/javascript">
-  var gk_isXlsx = false;
-  var gk_xlsxFileLookup = {};
-  var gk_fileData = {};
-  function filledCell(cell) {
-    return cell !== "" && cell != null;
-  }
-  function loadFileData(filename) {
-    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-      try {
-        var workbook = XLSX.read(gk_fileData[filename], { type: "base64" });
-        var firstSheetName = workbook.SheetNames[0];
-        var worksheet = workbook.Sheets[firstSheetName];
-
-        // Convert sheet to JSON to filter blank rows
-        var jsonData = XLSX.utils.sheet_to_json(worksheet, {
-          header: 1,
-          blankrows: false,
-          defval: "",
-        });
-        // Filter out blank rows (rows where all cells are empty, null, or undefined)
-        var filteredData = jsonData.filter((row) => row.some(filledCell));
-
-        // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-        var headerRowIndex = filteredData.findIndex(
-          (row, index) =>
-            row.filter(filledCell).length >=
-            filteredData[index + 1]?.filter(filledCell).length
-        );
-        // Fallback
-        if (headerRowIndex === -1 || headerRowIndex > 25) {
-          headerRowIndex = 0;
-        }
-
-        // Convert filtered JSON back to CSV
-        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-        return csv;
-      } catch (e) {
-        console.error(e);
-        return "";
-      }
-    }
-    return gk_fileData[filename] || "";
-  }
-</script>
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Time Calculator For Tube Cutting</title>
+    <title>Tube Cutting Time Calculator</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <style>
-      #footer {
-        text-align: center;
-        margin-top: 20px;
-        padding: 10px;
-        background-color: hsl(80, 13%, 95%);
-        border-top: 1px solid #ccc;
+      :root {
+        --primary: #2563eb;
+        --secondary: #3b82f6;
+        --accent: #60a5fa;
+        --light: #eff6ff;
+        --dark: #1e40af;
       }
-      .required-hours {
-        min-width: 80px;
+
+      body {
+        background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       }
-      .highlight-row {
+
+      .header {
+        background: linear-gradient(to right, var(--dark), var(--primary));
+        color: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+      }
+
+      .table-container {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .table-header {
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+        color: white;
+      }
+
+      .table-row:hover {
         background-color: #f0f9ff;
+        transform: translateY(-1px);
+        transition: all 0.2s ease;
       }
-      .header-cell {
-        min-width: 120px;
+
+      .highlight-row {
+        background-color: #dbeafe !important;
       }
+
       .capacity-cell,
       .hours-cell {
         font-weight: 600;
       }
+
       .total-cell {
         font-weight: 700;
         font-size: 1.1rem;
       }
+
+      .btn-primary {
+        background: linear-gradient(to right, var(--primary), var(--secondary));
+        color: white;
+        transition: all 0.3s ease;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+      }
+
+      .btn-reset {
+        background: linear-gradient(to right, #4b5563, #6b7280);
+        color: white;
+      }
+
+      .footer {
+        background: linear-gradient(to right, #f3f4f6, #e5e7eb);
+        border-top: 1px solid #d1d5db;
+      }
+
+      .input-control {
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 8px 12px;
+        transition: all 0.2s;
+      }
+
+      .input-control:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        outline: none;
+      }
+
+      .hours-selector {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .hour-option {
+        background: white;
+        border: 2px solid #d1d5db;
+        border-radius: 8px;
+        padding: 8px 5px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+      }
+
+      .hour-option:hover {
+        border-color: var(--accent);
+      }
+
+      .hour-option.selected {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+
+      .progress-bar {
+        height: 10px;
+        background: #e5e7eb;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 5px;
+      }
     </style>
   </head>
-  <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-5xl">
-      <a href="https://samantha-web.github.io/navigationhub/" class="inline-block bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-300">Back to Home</a>
-      <h1 class="text-2xl font-bold mb-6 text-center text-black-800">
-        Time Calculator For Tube Cutting
-      </h1>
-
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse mb-4">
-          <thead>
-            <tr class="bg-blue-700 text-white">
-              <th class="p-3 border header-cell">Item Code</th>
-              <th class="p-3 border header-cell">Unit</th>
-              <th class="p-3 border header-cell">Capacity per Hour</th>
-              <th class="p-3 border header-cell">MC Status</th>
-              <th class="p-3 border header-cell">Number of Pcs</th>
-              <th class="p-3 border header-cell">Required Hours</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody">
-            <!-- Rows will be populated by JavaScript -->
-          </tbody>
-          <tfoot>
-            <tr class="bg-blue-100">
-              <td
-                colspan="5"
-                class="p-3 border text-right font-semibold total-cell"
-              >
-                Total Required Hours
-              </td>
-              <td
-                id="totalHours"
-                class="p-3 border text-center font-bold total-cell"
-              >
-                0.00
-              </td>
-            </tr>
-            <tr class="bg-blue-100">
-              <td
-                colspan="5"
-                class="p-3 border text-right font-semibold total-cell"
-              >
-                Number of Days (8 Hours per day)
-              </td>
-              <td
-                id="totalDays"
-                class="p-3 border text-center font-bold total-cell"
-              >
-                0.00
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <hr class="my-6" />
-      <div class="flex justify-between mt-6">
-        <button
-          id="addRowBtn"
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-800 transition"
+  <body class="py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-6xl mx-auto">
+      <!-- Header -->
+      <div
+        class="header px-6 py-4 mb-8 flex flex-col sm:flex-row justify-between items-center"
+      >
+        <div>
+          <h1 class="text-2xl md:text-3xl font-bold mb-2">
+            <i class="fas fa-calculator mr-2"></i>Tube Cutting Time Calculator
+          </h1>
+          <p class="opacity-90">
+            Calculate production time for tube cutting operations
+          </p>
+        </div>
+        <a
+          href="https://samantha-web.github.io/navigationhub/"
+          class="mt-4 sm:mt-0 inline-block bg-white text-blue-700 font-semibold py-2 px-5 rounded-lg hover:bg-blue-50 transition duration-300"
         >
-          + Add Row
-        </button>
-        <div class="mb-6 flex space-x-4">
-          <div>
-            <label
-              for="sawBladeMC"
-              class="block text-sm font-medium text-blue-700"
-              >Number of Saw Blade MC</label
+          <i class="fas fa-home mr-2"></i>Back to Home
+        </a>
+      </div>
+
+      <!-- Main Content -->
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <!-- Table Section -->
+        <div class="table-container">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="table-header">
+                <th class="p-4 text-left">Item</th>
+                <th class="p-4 text-left">Item Code</th>
+                <th class="p-4 text-center">Unit</th>
+                <th class="p-4 text-center">Capacity/Hr</th>
+                <th class="p-4 text-center">MC Status</th>
+                <th class="p-4 text-center">Number of Pcs</th>
+                <th class="p-4 text-center">Required Hours</th>
+                <th class="p-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-gray-100">
+              <!-- Rows will be populated by JavaScript -->
+            </tbody>
+            <tfoot>
+              <tr class="bg-blue-50">
+                <td
+                  colspan="6"
+                  class="p-4 border-t text-right font-bold total-cell"
+                >
+                  Total Required Hours
+                </td>
+                <td
+                  id="totalHours"
+                  class="p-4 border-t text-center font-bold text-blue-700 text-xl"
+                >
+                  0.00
+                </td>
+                <td class="p-4 border-t"></td>
+              </tr>
+              <tr class="bg-blue-50">
+                <td colspan="6" class="p-4 text-right font-bold total-cell">
+                  Number of Days (<span id="hoursPerDayLabel">8</span> Hours per
+                  day)
+                </td>
+                <td
+                  id="totalDays"
+                  class="p-4 text-center font-bold text-blue-700 text-xl"
+                >
+                  0.00
+                </td>
+                <td class="p-4"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="p-6 border-t">
+          <div
+            class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6"
+          >
+            <button
+              id="addRowBtn"
+              class="btn-primary px-5 py-2.5 rounded-lg flex items-center"
             >
-            <input
-              type="number"
-              id="sawBladeMC"
-              min="0"
-              value="3"
-              class="w-32 p-2 border rounded focus:ring-2 focus:ring-blue-300"
-            />
+              <i class="fas fa-plus mr-2"></i>Add New Row
+            </button>
+
+            <div class="flex flex-wrap gap-4">
+              <div class="flex flex-col">
+                <label
+                  for="sawBladeMC"
+                  class="text-sm font-medium text-gray-700 mb-1"
+                >
+                  <i class="fas fa-saw mr-1 text-blue-600"></i>Saw Blade MC
+                </label>
+                <div class="flex">
+                  <button
+                    class="decrement-btn bg-gray-200 px-3 py-1.5 rounded-l-lg border-r border-gray-300"
+                    data-target="sawBladeMC"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    id="sawBladeMC"
+                    min="0"
+                    value="3"
+                    class="input-control w-20 text-center"
+                  />
+                  <button
+                    class="increment-btn bg-gray-200 px-3 py-1.5 rounded-r-lg border-l border-gray-300"
+                    data-target="sawBladeMC"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col">
+                <label
+                  for="diskBladeMC"
+                  class="text-sm font-medium text-gray-700 mb-1"
+                >
+                  <i class="fas fa-compact-disc mr-1 text-green-600"></i>Disk
+                  Blade MC
+                </label>
+                <div class="flex">
+                  <button
+                    class="decrement-btn bg-gray-200 px-3 py-1.5 rounded-l-lg border-r border-gray-300"
+                    data-target="diskBladeMC"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    id="diskBladeMC"
+                    min="0"
+                    value="0"
+                    class="input-control w-20 text-center"
+                  />
+                  <button
+                    class="increment-btn bg-gray-200 px-3 py-1.5 rounded-r-lg border-l border-gray-300"
+                    data-target="diskBladeMC"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              id="resetBtn"
+              class="btn-reset px-5 py-2.5 rounded-lg flex items-center"
+            >
+              <i class="fas fa-redo mr-2"></i>Reset All
+            </button>
           </div>
-          <div>
-            <label
-              for="diskBladeMC"
-              class="block text-sm font-medium text-blue-800"
-              >Number of Disk Blade MC</label
-            >
-            <input
-              type="number"
-              id="diskBladeMC"
-              min="0"
-              value="0"
-              class="w-32 p-2 border rounded focus:ring-2 focus:ring-blue-300"
-            />
+
+          <!-- Hours per day selector -->
+          <div class="mt-8">
+            <h3 class="text-lg font-semibold text-gray-800 mb-3">
+              <i class="fas fa-clock mr-2 text-blue-600"></i>Select Working
+              Hours Per Day
+            </h3>
+            <div class="hours-selector" id="hoursPerDaySelector">
+              <div class="hour-option selected" data-hours="8">8 Hours</div>
+              <div class="hour-option" data-hours="10">10 Hours</div>
+              <div class="hour-option" data-hours="12">12 Hours</div>
+              <div class="hour-option" data-hours="14">14 Hours</div>
+              <div class="hour-option" data-hours="16">16 Hours</div>
+              <div class="hour-option" data-hours="18">18 Hours</div>
+              <div class="hour-option" data-hours="20">20 Hours</div>
+              <div class="hour-option" data-hours="22">22 Hours</div>
+              <div class="hour-option" data-hours="24">24 Hours</div>
+            </div>
           </div>
         </div>
-        <button
-          id="resetBtn"
-          class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition"
-        >
-          Reset All
-        </button>
       </div>
 
-      <hr class="my-6" />
-      <footer id="footer" class="text-sm text-gray-600">
-        Copyright Samantha 2025 © All rights reserved.<br />
-        <a
-          href="mailto:s2880882@gmail.com"
-          class="text-blue-600 hover:underline"
-        >
-          s2880882@gmail.com (Samantha)
-        </a>
+      <!-- Info Section -->
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
+            <i class="fas fa-info-circle mr-2"></i>How to Use
+          </h3>
+          <ul class="space-y-2 text-gray-600">
+            <li class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+              <span>Select item and item code for each row</span>
+            </li>
+            <li class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+              <span>Choose machine type (Saw or Blade)</span>
+            </li>
+            <li class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+              <span>Enter the number of pieces</span>
+            </li>
+            <li class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+              <span>Select working hours per day</span>
+            </li>
+            <li class="flex items-start">
+              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+              <span>Results will update automatically</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
+            <i class="fas fa-tachometer-alt mr-2"></i>Production Summary
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-gray-600">Total Required Hours:</span>
+                <span class="font-bold" id="summaryHours">0.00</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  id="hoursProgress"
+                  style="width: 0%"
+                ></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-gray-600">Estimated Days:</span>
+                <span class="font-bold" id="summaryDays">0.00</span>
+              </div>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  id="daysProgress"
+                  style="width: 0%"
+                ></div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t">
+              <div class="flex justify-between items-center">
+                <span>Hours per Day:</span>
+                <span
+                  class="font-bold text-xl text-blue-700"
+                  id="summaryHoursPerDay"
+                  >12</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-xl shadow">
+          <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
+            <i class="fas fa-history mr-2"></i>Recent Calculations
+          </h3>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <span>Total Machines:</span>
+              <span class="font-medium" id="recentMachines">3</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span>Total Items:</span>
+              <span class="font-medium" id="recentItems">0</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span>Last Updated:</span>
+              <span class="font-medium" id="lastUpdated">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer class="footer mt-10 py-6 px-4 text-center rounded-lg">
+        <div class="text-gray-600">
+          <p class="font-medium">
+            Copyright Samantha 2025 © All rights reserved.
+          </p>
+          <p class="mt-1">
+            <a
+              href="mailto:s2880882@gmail.com"
+              class="text-blue-600 hover:underline"
+            >
+              <i class="fas fa-envelope mr-1"></i>s2880882@gmail.com (Samantha)
+            </a>
+          </p>
+        </div>
       </footer>
     </div>
 
@@ -249,7 +491,7 @@
         { code: "SPCCR1.2x42-5.8", unit: "Pcs", capacity: 277 },
         { code: "SPCCR1.2x44.5-5.8", unit: "Pcs", capacity: 240 },
         { code: "SPCCR1.2x50.8-5.8", unit: "Pcs", capacity: 200 },
-        { code: "SPCCR1.4 Viterbi decoderx14-5.8", unit: "Pcs", capacity: 240 },
+        { code: "SPCCR1.4x14-5.8", unit: "Pcs", capacity: 240 },
         { code: "SPCCR1.4x25.4-5.8", unit: "Pcs", capacity: 257 },
         { code: "SPCCR1.4x28.6-5.8", unit: "Pcs", capacity: 240 },
         { code: "SPCCR1.4x31.8-5.8", unit: "Pcs", capacity: 300 },
@@ -258,43 +500,90 @@
         { code: "SPCCR1.4x50.8-5.8", unit: "Pcs", capacity: 277 },
       ];
 
+      // Item types for the new column
+      const itemTypes = [
+        "HT",
+        "TT",
+        "D/TT",
+        "DT",
+        "ST",
+        "I/ST",
+        "Bridge",
+        "D/Bridge",
+        "BB",
+        "L/R CS",
+        "L/R SS",
+        "Other",
+      ];
+
       // Global row counter
       let rowCounter = 0;
+      let hoursPerDay = 12; // Default value
+
+      // Format current date and time
+      function formatDateTime() {
+        const now = new Date();
+        return now.toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+      }
 
       // Create a single table row
       function createTableRow() {
         const row = document.createElement("tr");
-        row.className = "hover:highlight-row";
+        row.className = "table-row";
         row.innerHTML = `
-        <td class="p-2 border">
-          <select class="item-select w-full p-2 border rounded focus:ring-2 focus:ring-blue-300">
-            <option value="">Select Item</option>
-            ${items
-              .map(
-                (item) => `<option value="${item.code}">${item.code}</option>`
-              )
-              .join("")}
-          </select>
-        </td>
-        <td class="p-2 border unit-cell text-center">-</td>
-        <td class="p-2 border capacity-cell text-center">-</td>
-        <td class="p-2 border">
-          <select class="mc-select w-full p-2 border rounded focus:ring-2 focus:ring-blue-300">
-            <option value="Saw">Saw</option>
-            <option value="Blade">Blade</option>
-          </select>
-        </td>
-        <td class="p-2 border">
-          <input type="number" min="0" 
-                 class="pcs-input w-full p-2 border rounded focus:ring-2 focus:ring-blue-300" 
-                 placeholder="0">
-        </td>
-        <td class="p-2 border hours-cell text-center font-semibold">0.00</td>
-      `;
+                <td class="p-3">
+                    <select class="item-type-select w-full input-control">
+                        <option value="">Select Type</option>
+                        ${itemTypes
+                          .map(
+                            (type) => `<option value="${type}">${type}</option>`
+                          )
+                          .join("")}
+                    </select>
+                </td>
+                <td class="p-3">
+                    <select class="item-select w-full input-control">
+                        <option value="">Select Item Code</option>
+                        ${items
+                          .map(
+                            (item) =>
+                              `<option value="${item.code}">${item.code}</option>`
+                          )
+                          .join("")}
+                    </select>
+                </td>
+                <td class="p-3 unit-cell text-center">-</td>
+                <td class="p-3 capacity-cell text-center font-semibold">-</td>
+                <td class="p-3 text-center">
+                    <select class="mc-select w-full input-control">
+                        <option value="Saw">Saw</option>
+                        <option value="Blade">Blade</option>
+                    </select>
+                </td>
+                <td class="p-3">
+                    <input type="number" min="0" class="pcs-input w-full input-control" placeholder="0">
+                </td>
+                <td class="p-3 hours-cell text-center font-semibold text-blue-700">0.00</td>
+                <td class="p-3 text-center">
+                    <button class="delete-row-btn text-red-500 hover:text-red-700">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            `;
 
         // Add event listeners to the new elements
         row
           .querySelector(".item-select")
+          .addEventListener("change", handleItemChange);
+        row
+          .querySelector(".item-type-select")
           .addEventListener("change", handleItemChange);
         row
           .querySelector(".mc-select")
@@ -302,6 +591,9 @@
         row
           .querySelector(".pcs-input")
           .addEventListener("input", handleInputChange);
+        row
+          .querySelector(".delete-row-btn")
+          .addEventListener("click", deleteRow);
 
         rowCounter++;
         return row;
@@ -321,6 +613,7 @@
       function handleItemChange(e) {
         const row = e.target.closest("tr");
         const itemSelect = row.querySelector(".item-select");
+        const itemTypeSelect = row.querySelector(".item-type-select");
         const unitCell = row.querySelector(".unit-cell");
         const capacityCell = row.querySelector(".capacity-cell");
         const hoursCell = row.querySelector(".hours-cell");
@@ -373,15 +666,32 @@
         calculateTotal();
       }
 
+      // Delete a row
+      function deleteRow(e) {
+        const row = e.target.closest("tr");
+        if (row) {
+          row.remove();
+          calculateTotal();
+        }
+      }
+
       // Calculate total hours and days
       function calculateTotal() {
         let sawHours = 0;
         let bladeHours = 0;
+        let itemCount = 0;
 
         document.querySelectorAll(".hours-cell").forEach((cell) => {
           const row = cell.closest("tr");
           const mcStatus = row.querySelector(".mc-select").value;
           const hours = parseFloat(cell.textContent) || 0;
+          const pcsInput = row.querySelector(".pcs-input");
+          const pcsValue = parseFloat(pcsInput.value) || 0;
+
+          if (pcsValue > 0) {
+            itemCount++;
+          }
+
           if (mcStatus === "Saw") {
             sawHours += hours;
           } else if (mcStatus === "Blade") {
@@ -399,8 +709,30 @@
           parseInt(document.getElementById("diskBladeMC").value) || 0;
         const totalMC = sawBladeMC + diskBladeMC;
         const totalDays =
-          totalMC > 0 ? (totalHours / 8 / totalMC).toFixed(2) : "0.00";
+          totalMC > 0 && hoursPerDay > 0
+            ? (totalHours / (totalMC * hoursPerDay)).toFixed(2)
+            : "0.00";
         document.getElementById("totalDays").textContent = totalDays;
+
+        // Update summary
+        document.getElementById("summaryHours").textContent =
+          totalHours.toFixed(2);
+        document.getElementById("summaryDays").textContent = totalDays;
+        document.getElementById("recentItems").textContent = itemCount;
+
+        // Update progress bars
+        const hoursProgress = Math.min(100, (totalHours / 100) * 100);
+        const daysProgress = Math.min(100, (totalDays / 10) * 100);
+        document.getElementById(
+          "hoursProgress"
+        ).style.width = `${hoursProgress}%`;
+        document.getElementById(
+          "daysProgress"
+        ).style.width = `${daysProgress}%`;
+
+        // Update recent calculations
+        document.getElementById("recentMachines").textContent = totalMC;
+        document.getElementById("lastUpdated").textContent = formatDateTime();
       }
 
       // Add a new row
@@ -417,12 +749,53 @@
           document.getElementById("totalDays").textContent = "0.00";
           document.getElementById("sawBladeMC").value = "3";
           document.getElementById("diskBladeMC").value = "0";
+          calculateTotal();
         }
+      }
+
+      // Handle increment/decrement buttons
+      function handleCounterButton(e) {
+        const target = e.target.getAttribute("data-target");
+        const input = document.getElementById(target);
+        let value = parseInt(input.value) || 0;
+
+        if (e.target.classList.contains("increment-btn")) {
+          value++;
+        } else if (e.target.classList.contains("decrement-btn") && value > 0) {
+          value--;
+        }
+
+        input.value = value;
+        calculateTotal();
+      }
+
+      // Handle hours per day selection
+      function selectHoursPerDay(e) {
+        if (!e.target.classList.contains("hour-option")) return;
+
+        // Remove selected class from all options
+        document.querySelectorAll(".hour-option").forEach((option) => {
+          option.classList.remove("selected");
+        });
+
+        // Add selected class to clicked option
+        e.target.classList.add("selected");
+
+        // Update hours per day
+        hoursPerDay = parseInt(e.target.getAttribute("data-hours"));
+
+        // Update label
+        document.getElementById("hoursPerDayLabel").textContent = hoursPerDay;
+        document.getElementById("summaryHoursPerDay").textContent = hoursPerDay;
+
+        // Recalculate days
+        calculateTotal();
       }
 
       // Initialize on load
       document.addEventListener("DOMContentLoaded", () => {
         populateTable(5);
+        calculateTotal();
 
         // Add event listeners to buttons
         document.getElementById("addRowBtn").addEventListener("click", addRow);
@@ -433,6 +806,18 @@
         document
           .getElementById("diskBladeMC")
           .addEventListener("input", calculateTotal);
+
+        // Add event listeners to counter buttons
+        document
+          .querySelectorAll(".increment-btn, .decrement-btn")
+          .forEach((btn) => {
+            btn.addEventListener("click", handleCounterButton);
+          });
+
+        // Add event listener to hours per day selector
+        document
+          .getElementById("hoursPerDaySelector")
+          .addEventListener("click", selectHoursPerDay);
       });
     </script>
   </body>
