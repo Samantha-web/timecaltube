@@ -35,6 +35,7 @@
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         border-radius: 12px;
         overflow: hidden;
+        overflow-x: auto;
       }
 
       .table-header {
@@ -98,7 +99,7 @@
 
       .hours-selector {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
         gap: 8px;
         margin-top: 10px;
       }
@@ -112,6 +113,8 @@
         cursor: pointer;
         transition: all 0.2s;
         font-weight: 500;
+        position: relative;
+        overflow: hidden;
       }
 
       .hour-option:hover {
@@ -122,6 +125,24 @@
         background: var(--primary);
         color: white;
         border-color: var(--primary);
+      }
+
+      .hour-option::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition: width 0.3s, height 0.3s;
+      }
+
+      .hour-option:active::after {
+        width: 300px;
+        height: 300px;
       }
 
       .progress-bar {
@@ -135,10 +156,109 @@
         height: 100%;
         background: var(--primary);
         border-radius: 5px;
+        transition: width 0.5s ease;
+      }
+      
+      /* Language toggle */
+      .lang-toggle {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 5px;
+        display: flex;
+        z-index: 10;
+      }
+      
+      .lang-btn {
+        padding: 5px 12px;
+        border-radius: 15px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 500;
+      }
+      
+      .lang-btn.active {
+        background: white;
+        color: var(--primary);
+      }
+      
+      /* Mobile adjustments */
+      @media (max-width: 768px) {
+        .header {
+          padding-top: 50px;
+          position: relative;
+        }
+        
+        .table-container {
+          overflow-x: auto;
+        }
+        
+        table {
+          min-width: 700px;
+        }
+        
+        .controls-container {
+          flex-direction: column;
+          gap: 15px;
+        }
+        
+        .info-grid {
+          grid-template-columns: 1fr;
+        }
+        
+        .hour-option {
+          padding: 6px 3px;
+          font-size: 14px;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .p-3 {
+          padding: 8px 4px;
+        }
+        
+        .hour-option {
+          font-size: 12px;
+        }
+        
+        .btn-primary, .btn-reset {
+          padding: 8px 12px;
+          font-size: 14px;
+        }
+      }
+      
+      /* How to use section */
+      .how-to-use {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      
+      @media (max-width: 768px) {
+        .how-to-use {
+          grid-template-columns: 1fr;
+        }
+      }
+      
+      .performance-notice {
+        background: #fffbeb;
+        border-left: 4px solid #f59e0b;
+        padding: 10px 15px;
+        margin-top: 15px;
+        border-radius: 0 6px 6px 0;
+        font-size: 14px;
       }
     </style>
   </head>
   <body class="py-8 px-4 sm:px-6 lg:px-8">
+    <!-- Language Toggle -->
+    <div class="lang-toggle">
+      <div class="lang-btn active" id="langEn">EN</div>
+      <div class="lang-btn" id="langBn">BN</div>
+    </div>
+    
     <div class="max-w-6xl mx-auto">
       <!-- Header -->
       <div
@@ -146,17 +266,19 @@
       >
         <div>
           <h1 class="text-2xl md:text-3xl font-bold mb-2">
-            <i class="fas fa-calculator mr-2"></i>Tube Cutting Time Calculator
+            <i class="fas fa-calculator mr-2"></i>
+            <span data-en="Tube Cutting Time Calculator" data-bn="টিউব কাটিং সময় ক্যালকুলেটর">Tube Cutting Time Calculator</span>
           </h1>
           <p class="opacity-90">
-            Calculate production time for tube cutting operations
+            <span data-en="Calculate production time for tube cutting operations" data-bn="টিউব কাটিং অপারেশনের জন্য উৎপাদন সময় গণনা করুন">Calculate production time for tube cutting operations</span>
           </p>
         </div>
         <a
           href="https://samantha-web.github.io/navigationhub/"
           class="mt-4 sm:mt-0 inline-block bg-white text-blue-700 font-semibold py-2 px-5 rounded-lg hover:bg-blue-50 transition duration-300"
         >
-          <i class="fas fa-home mr-2"></i>Back to Home
+          <i class="fas fa-home mr-2"></i>
+          <span data-en="Back to Home" data-bn="হোমে ফিরে যান">Back to Home</span>
         </a>
       </div>
 
@@ -167,14 +289,30 @@
           <table class="w-full border-collapse">
             <thead>
               <tr class="table-header">
-                <th class="p-4 text-left">Item</th>
-                <th class="p-4 text-left">Item Code</th>
-                <th class="p-4 text-center">Unit</th>
-                <th class="p-4 text-center">Capacity/Hr</th>
-                <th class="p-4 text-center">MC Status</th>
-                <th class="p-4 text-center">Number of Pcs</th>
-                <th class="p-4 text-center">Required Hours</th>
-                <th class="p-4 text-center">Action</th>
+                <th class="p-4 text-left">
+                  <span data-en="Item" data-bn="আইটেম">Item</span>
+                </th>
+                <th class="p-4 text-left">
+                  <span data-en="Item Code" data-bn="আইটেম কোড">Item Code</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Unit" data-bn="ইউনিট">Unit</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Capacity/Hr" data-bn="ক্ষমতা/ঘণ্টা">Capacity/Hr</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="MC Status" data-bn="এমসি অবস্থা">MC Status</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Number of Pcs" data-bn="পিসের সংখ্যা">Number of Pcs</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Required Hours" data-bn="প্রয়োজনীয় ঘণ্টা">Required Hours</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Action" data-bn="ক্রিয়া">Action</span>
+                </th>
               </tr>
             </thead>
             <tbody id="tableBody" class="divide-y divide-gray-100">
@@ -186,7 +324,7 @@
                   colspan="6"
                   class="p-4 border-t text-right font-bold total-cell"
                 >
-                  Total Required Hours
+                  <span data-en="Total Required Hours" data-bn="মোট প্রয়োজনীয় ঘণ্টা">Total Required Hours</span>
                 </td>
                 <td
                   id="totalHours"
@@ -198,8 +336,9 @@
               </tr>
               <tr class="bg-blue-50">
                 <td colspan="6" class="p-4 text-right font-bold total-cell">
-                  Number of Days (<span id="hoursPerDayLabel">8</span> Hours per
-                  day)
+                  <span data-en="Number of Days" data-bn="দিনের সংখ্যা">Number of Days</span>
+                  (<span id="hoursPerDayLabel">8</span> 
+                  <span data-en="Hours per day" data-bn="প্রতিদিন ঘণ্টা">Hours per day</span>)
                 </td>
                 <td
                   id="totalDays"
@@ -216,13 +355,14 @@
         <!-- Controls Section -->
         <div class="p-6 border-t">
           <div
-            class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6"
+            class="controls-container flex flex-col md:flex-row justify-between items-start md:items-center gap-6"
           >
             <button
               id="addRowBtn"
               class="btn-primary px-5 py-2.5 rounded-lg flex items-center"
             >
-              <i class="fas fa-plus mr-2"></i>Add New Row
+              <i class="fas fa-plus mr-2"></i>
+              <span data-en="Add New Row" data-bn="নতুন সারি যোগ করুন">Add New Row</span>
             </button>
 
             <div class="flex flex-wrap gap-4">
@@ -231,7 +371,8 @@
                   for="sawBladeMC"
                   class="text-sm font-medium text-gray-700 mb-1"
                 >
-                  <i class="fas fa-saw mr-1 text-blue-600"></i>Saw Blade MC
+                  <i class="fas fa-saw mr-1 text-blue-600"></i>
+                  <span data-en="Saw Blade MC" data-bn="করাত ব্লেড এমসি">Saw Blade MC</span>
                 </label>
                 <div class="flex">
                   <button
@@ -261,8 +402,8 @@
                   for="diskBladeMC"
                   class="text-sm font-medium text-gray-700 mb-1"
                 >
-                  <i class="fas fa-compact-disc mr-1 text-green-600"></i>Disk
-                  Blade MC
+                  <i class="fas fa-compact-disc mr-1 text-green-600"></i>
+                  <span data-en="Disk Blade MC" data-bn="ডিস্ক ব্লেড এমসি">Disk Blade MC</span>
                 </label>
                 <div class="flex">
                   <button
@@ -292,69 +433,130 @@
               id="resetBtn"
               class="btn-reset px-5 py-2.5 rounded-lg flex items-center"
             >
-              <i class="fas fa-redo mr-2"></i>Reset All
+              <i class="fas fa-redo mr-2"></i>
+              <span data-en="Reset All" data-bn="সব রিসেট করুন">Reset All</span>
             </button>
           </div>
 
           <!-- Hours per day selector -->
           <div class="mt-8">
             <h3 class="text-lg font-semibold text-gray-800 mb-3">
-              <i class="fas fa-clock mr-2 text-blue-600"></i>Select Working
-              Hours Per Day
+              <i class="fas fa-clock mr-2 text-blue-600"></i>
+              <span data-en="Select Working Hours Per Day" data-bn="প্রতিদিন কাজের ঘণ্টা নির্বাচন করুন">Select Working Hours Per Day</span>
             </h3>
             <div class="hours-selector" id="hoursPerDaySelector">
-              <div class="hour-option selected" data-hours="8">8 Hours</div>
-              <div class="hour-option" data-hours="10">10 Hours</div>
-              <div class="hour-option" data-hours="12">12 Hours</div>
-              <div class="hour-option" data-hours="14">14 Hours</div>
-              <div class="hour-option" data-hours="16">16 Hours</div>
-              <div class="hour-option" data-hours="18">18 Hours</div>
-              <div class="hour-option" data-hours="20">20 Hours</div>
-              <div class="hour-option" data-hours="22">22 Hours</div>
-              <div class="hour-option" data-hours="24">24 Hours</div>
+              <div class="hour-option selected" data-hours="8">
+                <span data-en="8 Hours" data-bn="৮ ঘণ্টা">8 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="10">
+                <span data-en="10 Hours" data-bn="১০ ঘণ্টা">10 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="12">
+                <span data-en="12 Hours" data-bn="১২ ঘণ্টা">12 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="14">
+                <span data-en="14 Hours" data-bn="১৪ ঘণ্টা">14 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="16">
+                <span data-en="16 Hours" data-bn="১৬ ঘণ্টা">16 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="18">
+                <span data-en="18 Hours" data-bn="১৮ ঘণ্টা">18 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="20">
+                <span data-en="20 Hours" data-bn="২০ ঘণ্টা">20 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="22">
+                <span data-en="22 Hours" data-bn="২২ ঘণ্টা">22 Hours</span>
+              </div>
+              <div class="hour-option" data-hours="24">
+                <span data-en="24 Hours" data-bn="২৪ ঘণ্টা">24 Hours</span>
+              </div>
+            </div>
+            <div class="performance-notice">
+              <i class="fas fa-bolt mr-2 text-yellow-500"></i>
+              <span data-en="Optimized for instant response" data-bn="তাত্ক্ষণিক প্রতিক্রিয়ার জন্য অপ্টিমাইজ করা">Optimized for instant response</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Info Section -->
-      <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 info-grid">
+        <!-- How to Use Section -->
         <div class="bg-white p-5 rounded-xl shadow">
           <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
-            <i class="fas fa-info-circle mr-2"></i>How to Use
+            <i class="fas fa-info-circle mr-2"></i>
+            <span data-en="How to Use" data-bn="কিভাবে ব্যবহার করবেন">How to Use</span>
           </h3>
-          <ul class="space-y-2 text-gray-600">
-            <li class="flex items-start">
-              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-              <span>Select item and item code for each row</span>
-            </li>
-            <li class="flex items-start">
-              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-              <span>Choose machine type (Saw or Blade)</span>
-            </li>
-            <li class="flex items-start">
-              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-              <span>Enter the number of pieces</span>
-            </li>
-            <li class="flex items-start">
-              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-              <span>Select working hours per day</span>
-            </li>
-            <li class="flex items-start">
-              <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-              <span>Results will update automatically</span>
-            </li>
-          </ul>
+          <div class="how-to-use">
+            <!-- English Instructions -->
+            <div>
+              <h4 class="font-medium text-blue-700 mb-2">English</h4>
+              <ul class="space-y-2 text-gray-600">
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>Select item and item code for each row</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>Choose machine type (Saw or Blade)</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>Enter the number of pieces</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>Select working hours per day</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>Results update instantly</span>
+                </li>
+              </ul>
+            </div>
+            
+            <!-- Bangla Instructions -->
+            <div>
+              <h4 class="font-medium text-blue-700 mb-2">বাংলা</h4>
+              <ul class="space-y-2 text-gray-600">
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>প্রতিটি সারির জন্য আইটেম এবং আইটেম কোড নির্বাচন করুন</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>মেশিনের ধরন নির্বাচন করুন (করাত বা ব্লেড)</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>পিসের সংখ্যা লিখুন</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>প্রতিদিন কাজের ঘণ্টা নির্বাচন করুন</span>
+                </li>
+                <li class="flex items-start">
+                  <i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
+                  <span>ফলাফল তাত্ক্ষণিকভাবে আপডেট হয়</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow">
           <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
-            <i class="fas fa-tachometer-alt mr-2"></i>Production Summary
+            <i class="fas fa-tachometer-alt mr-2"></i>
+            <span data-en="Production Summary" data-bn="উৎপাদন সারাংশ">Production Summary</span>
           </h3>
           <div class="space-y-4">
             <div>
               <div class="flex justify-between mb-1">
-                <span class="text-gray-600">Total Required Hours:</span>
+                <span class="text-gray-600">
+                  <span data-en="Total Required Hours:" data-bn="মোট প্রয়োজনীয় ঘণ্টা:">Total Required Hours:</span>
+                </span>
                 <span class="font-bold" id="summaryHours">0.00</span>
               </div>
               <div class="progress-bar">
@@ -368,7 +570,9 @@
 
             <div>
               <div class="flex justify-between mb-1">
-                <span class="text-gray-600">Estimated Days:</span>
+                <span class="text-gray-600">
+                  <span data-en="Estimated Days:" data-bn="আনুমানিক দিন:">Estimated Days:</span>
+                </span>
                 <span class="font-bold" id="summaryDays">0.00</span>
               </div>
               <div class="progress-bar">
@@ -382,7 +586,9 @@
 
             <div class="pt-2 border-t">
               <div class="flex justify-between items-center">
-                <span>Hours per Day:</span>
+                <span>
+                  <span data-en="Hours per Day:" data-bn="প্রতিদিন ঘণ্টা:">Hours per Day:</span>
+                </span>
                 <span
                   class="font-bold text-xl text-blue-700"
                   id="summaryHoursPerDay"
@@ -395,19 +601,26 @@
 
         <div class="bg-white p-5 rounded-xl shadow">
           <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
-            <i class="fas fa-history mr-2"></i>Recent Calculations
+            <i class="fas fa-history mr-2"></i>
+            <span data-en="Recent Calculations" data-bn="সাম্প্রতিক গণনা">Recent Calculations</span>
           </h3>
           <div class="space-y-3">
             <div class="flex justify-between items-center">
-              <span>Total Machines:</span>
+              <span>
+                <span data-en="Total Machines:" data-bn="মোট মেশিন:">Total Machines:</span>
+              </span>
               <span class="font-medium" id="recentMachines">3</span>
             </div>
             <div class="flex justify-between items-center">
-              <span>Total Items:</span>
+              <span>
+                <span data-en="Total Items:" data-bn="মোট আইটেম:">Total Items:</span>
+              </span>
               <span class="font-medium" id="recentItems">0</span>
             </div>
             <div class="flex justify-between items-center">
-              <span>Last Updated:</span>
+              <span>
+                <span data-en="Last Updated:" data-bn="সর্বশেষ আপডেট:">Last Updated:</span>
+              </span>
               <span class="font-medium" id="lastUpdated">-</span>
             </div>
           </div>
@@ -418,14 +631,14 @@
       <footer class="footer mt-10 py-6 px-4 text-center rounded-lg">
         <div class="text-gray-600">
           <p class="font-medium">
-            Copyright Samantha 2025 © All rights reserved.
+            Copyright Samantha 2025 © <span data-en="All rights reserved" data-bn="সমস্ত অধিকার সংরক্ষিত">All rights reserved</span>.
           </p>
           <p class="mt-1">
             <a
               href="mailto:s2880882@gmail.com"
               class="text-blue-600 hover:underline"
             >
-              <i class="fas fa-envelope mr-1"></i>s2880882@gmail.com (Samantha)
+              <i class="fas fa-envelope mr-1"></i>s2880882@gmail.com (<span data-en="Samantha" data-bn="সামান্থা">Samantha</span>)
             </a>
           </p>
         </div>
@@ -516,9 +729,11 @@
         "Other",
       ];
 
-      // Global row counter
+      // Global variables
       let rowCounter = 0;
-      let hoursPerDay = 12; // Default value
+      let hoursPerDay = 12;
+      let currentLanguage = "en";
+      let cachedTotalHours = 0; // Cache for total hours to avoid recalculating
 
       // Format current date and time
       function formatDateTime() {
@@ -533,6 +748,26 @@
         });
       }
 
+      // Set language
+      function setLanguage(lang) {
+        currentLanguage = lang;
+        
+        // Update language buttons
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        document.getElementById(`lang${lang === 'en' ? 'En' : 'Bn'}`).classList.add('active');
+        
+        // Update all text elements
+        document.querySelectorAll('[data-en], [data-bn]').forEach(el => {
+          if (lang === 'en') {
+            el.textContent = el.getAttribute('data-en');
+          } else {
+            el.textContent = el.getAttribute('data-bn');
+          }
+        });
+      }
+
       // Create a single table row
       function createTableRow() {
         const row = document.createElement("tr");
@@ -540,7 +775,7 @@
         row.innerHTML = `
                 <td class="p-3">
                     <select class="item-type-select w-full input-control">
-                        <option value="">Select Type</option>
+                        <option value="">${currentLanguage === 'en' ? 'Select Type' : 'ধরন নির্বাচন করুন'}</option>
                         ${itemTypes
                           .map(
                             (type) => `<option value="${type}">${type}</option>`
@@ -550,7 +785,7 @@
                 </td>
                 <td class="p-3">
                     <select class="item-select w-full input-control">
-                        <option value="">Select Item Code</option>
+                        <option value="">${currentLanguage === 'en' ? 'Select Item Code' : 'আইটেম কোড নির্বাচন করুন'}</option>
                         ${items
                           .map(
                             (item) =>
@@ -563,8 +798,8 @@
                 <td class="p-3 capacity-cell text-center font-semibold">-</td>
                 <td class="p-3 text-center">
                     <select class="mc-select w-full input-control">
-                        <option value="Saw">Saw</option>
-                        <option value="Blade">Blade</option>
+                        <option value="Saw">${currentLanguage === 'en' ? 'Saw' : 'করাত'}</option>
+                        <option value="Blade">${currentLanguage === 'en' ? 'Blade' : 'ব্লেড'}</option>
                     </select>
                 </td>
                 <td class="p-3">
@@ -699,10 +934,13 @@
           }
         });
 
-        const totalHours = sawHours + bladeHours;
-        document.getElementById("totalHours").textContent =
-          totalHours.toFixed(2);
+        cachedTotalHours = sawHours + bladeHours;
+        document.getElementById("totalHours").textContent = cachedTotalHours.toFixed(2);
+        updateDaysCalculation();
+      }
 
+      // Update days calculation separately
+      function updateDaysCalculation() {
         const sawBladeMC =
           parseInt(document.getElementById("sawBladeMC").value) || 0;
         const diskBladeMC =
@@ -710,25 +948,20 @@
         const totalMC = sawBladeMC + diskBladeMC;
         const totalDays =
           totalMC > 0 && hoursPerDay > 0
-            ? (totalHours / (totalMC * hoursPerDay)).toFixed(2)
+            ? (cachedTotalHours / (totalMC * hoursPerDay)).toFixed(2)
             : "0.00";
         document.getElementById("totalDays").textContent = totalDays;
 
         // Update summary
-        document.getElementById("summaryHours").textContent =
-          totalHours.toFixed(2);
+        document.getElementById("summaryHours").textContent = cachedTotalHours.toFixed(2);
         document.getElementById("summaryDays").textContent = totalDays;
-        document.getElementById("recentItems").textContent = itemCount;
+        document.getElementById("recentItems").textContent = document.querySelectorAll('.pcs-input').length;
 
         // Update progress bars
-        const hoursProgress = Math.min(100, (totalHours / 100) * 100);
+        const hoursProgress = Math.min(100, (cachedTotalHours / 100) * 100);
         const daysProgress = Math.min(100, (totalDays / 10) * 100);
-        document.getElementById(
-          "hoursProgress"
-        ).style.width = `${hoursProgress}%`;
-        document.getElementById(
-          "daysProgress"
-        ).style.width = `${daysProgress}%`;
+        document.getElementById("hoursProgress").style.width = `${hoursProgress}%`;
+        document.getElementById("daysProgress").style.width = `${daysProgress}%`;
 
         // Update recent calculations
         document.getElementById("recentMachines").textContent = totalMC;
@@ -743,13 +976,14 @@
 
       // Reset all rows
       function resetAll() {
-        if (confirm("Are you sure you want to reset all data?")) {
+        if (confirm(currentLanguage === 'en' ? "Are you sure you want to reset all data?" : "আপনি কি নিশ্চিত যে আপনি সমস্ত ডেটা রিসেট করতে চান?")) {
           populateTable(5);
           document.getElementById("totalHours").textContent = "0.00";
           document.getElementById("totalDays").textContent = "0.00";
           document.getElementById("sawBladeMC").value = "3";
           document.getElementById("diskBladeMC").value = "0";
-          calculateTotal();
+          cachedTotalHours = 0;
+          updateDaysCalculation();
         }
       }
 
@@ -766,12 +1000,15 @@
         }
 
         input.value = value;
-        calculateTotal();
+        updateDaysCalculation();
       }
 
-      // Handle hours per day selection
+      // Handle hours per day selection - OPTIMIZED
       function selectHoursPerDay(e) {
         if (!e.target.classList.contains("hour-option")) return;
+
+        // Check if this is the already selected option
+        if (e.target.classList.contains("selected")) return;
 
         // Remove selected class from all options
         document.querySelectorAll(".hour-option").forEach((option) => {
@@ -788,8 +1025,8 @@
         document.getElementById("hoursPerDayLabel").textContent = hoursPerDay;
         document.getElementById("summaryHoursPerDay").textContent = hoursPerDay;
 
-        // Recalculate days
-        calculateTotal();
+        // Update days calculation only (no need to recalc total hours)
+        updateDaysCalculation();
       }
 
       // Initialize on load
@@ -802,10 +1039,10 @@
         document.getElementById("resetBtn").addEventListener("click", resetAll);
         document
           .getElementById("sawBladeMC")
-          .addEventListener("input", calculateTotal);
+          .addEventListener("input", updateDaysCalculation);
         document
           .getElementById("diskBladeMC")
-          .addEventListener("input", calculateTotal);
+          .addEventListener("input", updateDaysCalculation);
 
         // Add event listeners to counter buttons
         document
@@ -818,6 +1055,10 @@
         document
           .getElementById("hoursPerDaySelector")
           .addEventListener("click", selectHoursPerDay);
+          
+        // Language toggle
+        document.getElementById('langEn').addEventListener('click', () => setLanguage('en'));
+        document.getElementById('langBn').addEventListener('click', () => setLanguage('bn'));
       });
     </script>
   </body>
