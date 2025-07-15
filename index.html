@@ -1,4 +1,43 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -232,7 +271,7 @@
       /* How to use section */
       .how-to-use {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template colonnes: 1fr 1fr;
         gap: 20px;
       }
       
@@ -249,6 +288,24 @@
         margin-top: 15px;
         border-radius: 0 6px 6px 0;
         font-size: 14px;
+      }
+
+      .utilization-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      
+      .saw-badge {
+        background-color: #dbeafe;
+        color: #2563eb;
+      }
+      
+      .blade-badge {
+        background-color: #dcfce7;
+        color: #166534;
       }
     </style>
   </head>
@@ -481,6 +538,39 @@
         </div>
       </div>
 
+      <!-- Summary Table -->
+      <div id="summarySection" class="mt-10 bg-white rounded-xl shadow-lg overflow-hidden hidden">
+        <div class="table-container">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="table-header">
+                <th class="p-4 text-left">
+                  <span data-en="Item" data-bn="আইটেম">Item</span>
+                </th>
+                <th class="p-4 text-left">
+                  <span data-en="Item Code" data-bn="আইটেম কোড">Item Code</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Machine Type" data-bn="মেশিনের ধরণ">Machine Type</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Capacity/Hr" data-bn="ক্ষমতা/ঘণ্টা">Capacity/Hr</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Pieces" data-bn="পিস">Pieces</span>
+                </th>
+                <th class="p-4 text-center">
+                  <span data-en="Hours" data-bn="ঘণ্টা">Hours</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody" class="divide-y divide-gray-100">
+              <!-- Summary rows will be populated by JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Info Section -->
       <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 info-grid">
         <!-- How to Use Section -->
@@ -546,41 +636,50 @@
           </div>
         </div>
 
+        <!-- Production Summary Section -->
         <div class="bg-white p-5 rounded-xl shadow">
           <h3 class="font-bold text-lg text-blue-800 mb-3 flex items-center">
             <i class="fas fa-tachometer-alt mr-2"></i>
             <span data-en="Production Summary" data-bn="উৎপাদন সারাংশ">Production Summary</span>
           </h3>
           <div class="space-y-4">
-            <div>
-              <div class="flex justify-between mb-1">
-                <span class="text-gray-600">
-                  <span data-en="Total Required Hours:" data-bn="মোট প্রয়োজনীয় ঘণ্টা:">Total Required Hours:</span>
+            <div class="pt-2">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-gray-600 flex items-center">
+                  <i class="fas fa-saw mr-2 text-blue-600"></i>
+                  <span data-en="Saw Utilization:" data-bn="করাত ব্যবহার:">Saw Utilization:</span>
                 </span>
-                <span class="font-bold" id="summaryHours">0.00</span>
+                <span class="font-bold" id="sawUtilization">0.00</span>
+              </div>
+              <div class="text-xs text-gray-500 pl-6 mb-1">
+                <span data-en="(Total Saw Hours / Saw Machines)" data-bn="(মোট করাত ঘণ্টা / করাত মেশিন)">(Total Saw Hours / Saw Machines)</span>
               </div>
               <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  id="hoursProgress"
-                  style="width: 0%"
-                ></div>
+                <div class="progress-fill" id="sawProgress" style="width: 0%"></div>
+              </div>
+              <div class="text-xs text-gray-500 pl-6 mt-1">
+                <span data-en="Estimated Days: " data-bn="আনুমানিক দিন: ">Estimated Days: </span>
+                <span id="sawDays">0.00</span>
               </div>
             </div>
 
-            <div>
-              <div class="flex justify-between mb-1">
-                <span class="text-gray-600">
-                  <span data-en="Estimated Days:" data-bn="আনুমানিক দিন:">Estimated Days:</span>
+            <div class="pt-2">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-gray-600 flex items-center">
+                  <i class="fas fa-compact-disc mr-2 text-green-600"></i>
+                  <span data-en="Blade Utilization:" data-bn="ব্লেড ব্যবহার:">Blade Utilization:</span>
                 </span>
-                <span class="font-bold" id="summaryDays">0.00</span>
+                <span class="font-bold" id="bladeUtilization">0.00</span>
+              </div>
+              <div class="text-xs text-gray-500 pl-6 mb-1">
+                <span data-en="(Total Blade Hours / Blade Machines)" data-bn="(মোট ব্লেড ঘণ্টা / ব্লেড মেশিন)">(Total Blade Hours / Blade Machines)</span>
               </div>
               <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  id="daysProgress"
-                  style="width: 0%"
-                ></div>
+                <div class="progress-fill" id="bladeProgress" style="width: 0%"></div>
+              </div>
+              <div class="text-xs text-gray-500 pl-6 mt-1">
+                <span data-en="Estimated Days: " data-bn="আনুমানিক দিন: ">Estimated Days: </span>
+                <span id="bladeDays">0.00</span>
               </div>
             </div>
 
@@ -589,11 +688,7 @@
                 <span>
                   <span data-en="Hours per Day:" data-bn="প্রতিদিন ঘণ্টা:">Hours per Day:</span>
                 </span>
-                <span
-                  class="font-bold text-xl text-blue-700"
-                  id="summaryHoursPerDay"
-                  >12</span
-                >
+                <span class="font-bold text-xl text-blue-700" id="summaryHoursPerDay">8</span>
               </div>
             </div>
           </div>
@@ -646,71 +741,71 @@
     </div>
 
     <script>
-      // Item data from provided list
+      // Updated item data with both capacities
       const items = [
-        { code: "A6061R1.6x16-5.8", unit: "Pcs", capacity: 450 },
-        { code: "A6061R1.6x19-5.8", unit: "Pcs", capacity: 450 },
-        { code: "A6061R1.6x22.2-5.8", unit: "Pcs", capacity: 400 },
-        { code: "A6061R1.6x38.1-5.8", unit: "Pcs", capacity: 240 },
-        { code: "A6061R1.6x42-5.8", unit: "Pcs", capacity: 225 },
-        { code: "A6061R1.6x44-5.8", unit: "Pcs", capacity: 212 },
-        { code: "A6061R1.8x16-5.8", unit: "Pcs", capacity: 450 },
-        { code: "A6061R1.8x19-5.8", unit: "Pcs", capacity: 450 },
-        { code: "A6061R1.8x22.2-5.8", unit: "Pcs", capacity: 400 },
-        { code: "A6061R1.8x25.4-5.8", unit: "Pcs", capacity: 360 },
-        { code: "A6061R1.8x27-5.8", unit: "Pcs", capacity: 300 },
-        { code: "A6061R1.8x28.6-5.8", unit: "Pcs", capacity: 300 },
-        { code: "A6061R1.8x31.8-5.8", unit: "Pcs", capacity: 189 },
-        { code: "A6061R1.8x34.9-5.8", unit: "Pcs", capacity: 277 },
-        { code: "A6061R1.8x38.1-5.8", unit: "Pcs", capacity: 240 },
-        { code: "A6061R1.8x42-5.8", unit: "Pcs", capacity: 225 },
-        { code: "A6061R1.8x44-5.8", unit: "Pcs", capacity: 212 },
-        { code: "A6061R1.8x48-5.8", unit: "Pcs", capacity: 212 },
-        { code: "A6061R1.8x50.8-5.8", unit: "Pcs", capacity: 200 },
-        { code: "A6061R2.2x22.2-5.8", unit: "Pcs", capacity: 360 },
-        { code: "A6061R2.2x28.6-5.8", unit: "Pcs", capacity: 300 },
-        { code: "A6061R2.2x31.8-5.8", unit: "Pcs", capacity: 327 },
-        { code: "A6061R2.2x34.9-5.8", unit: "Pcs", capacity: 225 },
-        { code: "A6061R2.2x38.1-5.8", unit: "Pcs", capacity: 360 },
-        { code: "A6061R2.2x50.8-5.8", unit: "Pcs", capacity: 164 },
-        { code: "A6061RS1.6x34.9-2.9", unit: "Pcs", capacity: 277 },
-        { code: "A6061RS2.0x34.9-5.8", unit: "Pcs", capacity: 240 },
-        { code: "A6061RS2.2x31.8-2.9", unit: "Pcs", capacity: 327 },
-        { code: "A6061RS2.2x31.8-5.8", unit: "Pcs", capacity: 327 },
-        { code: "A6061RS2.2x34.9-2.9", unit: "Pcs", capacity: 225 },
-        { code: "A6061RS2.2x34.9-5.8", unit: "Pcs", capacity: 225 },
-        { code: "A6061RS3.5x50-2.9", unit: "Pcs", capacity: 80 },
-        { code: "A6061RS3.8x37-2.9", unit: "Pcs", capacity: 144 },
-        { code: "A6061RS3.8x37-5.8", unit: "Pcs", capacity: 144 },
-        { code: "A6061RS3.8x41-2.9", unit: "Pcs", capacity: 116 },
-        { code: "A6061RS4.7x43-2.9", unit: "Pcs", capacity: 103 },
-        { code: "A6061RS4.7x43-5.8", unit: "Pcs", capacity: 103 },
-        { code: "A6061RS4.7x50-2.9", unit: "Pcs", capacity: 80 },
-        { code: "A6061RS4.7x60-2.9", unit: "Pcs", capacity: 72 },
-        { code: "A6061RS4.7x60-5.8", unit: "Pcs", capacity: 72 },
-        { code: "A6061S1.6x23x17-5.8", unit: "Pcs", capacity: 514 },
-        { code: "A6061S1.6x37x40-5.8", unit: "Pcs", capacity: 200 },
-        { code: "A6061S1.6x48.01x53.01-5.8", unit: "Pcs", capacity: 164 },
-        { code: "A6061S1.8x28x17-2.9", unit: "Pcs", capacity: 450 },
-        { code: "SPCCR1.2x14-5.8", unit: "Pcs", capacity: 450 },
-        { code: "SPCCR1.2x16-5.8", unit: "Pcs", capacity: 450 },
-        { code: "SPCCR1.2x19.1-5.8", unit: "Pcs", capacity: 450 },
-        { code: "SPCCR1.2x22.2-5.8", unit: "Pcs", capacity: 400 },
-        { code: "SPCCR1.2x25.4-5.8", unit: "Pcs", capacity: 360 },
-        { code: "SPCCR1.2x28.6-5.8", unit: "Pcs", capacity: 360 },
-        { code: "SPCCR1.2x31.8-5.8", unit: "Pcs", capacity: 300 },
-        { code: "SPCCR1.2x34-5.8", unit: "Pcs", capacity: 257 },
-        { code: "SPCCR1.2x38.1-5.8", unit: "Pcs", capacity: 257 },
-        { code: "SPCCR1.2x42-5.8", unit: "Pcs", capacity: 277 },
-        { code: "SPCCR1.2x44.5-5.8", unit: "Pcs", capacity: 240 },
-        { code: "SPCCR1.2x50.8-5.8", unit: "Pcs", capacity: 200 },
-        { code: "SPCCR1.4x14-5.8", unit: "Pcs", capacity: 240 },
-        { code: "SPCCR1.4x25.4-5.8", unit: "Pcs", capacity: 257 },
-        { code: "SPCCR1.4x28.6-5.8", unit: "Pcs", capacity: 240 },
-        { code: "SPCCR1.4x31.8-5.8", unit: "Pcs", capacity: 300 },
-        { code: "SPCCR1.4x34-5.8", unit: "Pcs", capacity: 277 },
-        { code: "SPCCR1.4x38.1-5.8", unit: "Pcs", capacity: 300 },
-        { code: "SPCCR1.4x50.8-5.8", unit: "Pcs", capacity: 277 },
+        { code: "A6061R1.6x16-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "A6061R1.6x19-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 600 },
+        { code: "A6061R1.6x22.2-5.8", unit: "Pcs", capacitySaw: 400, capacityBlade: 514 },
+        { code: "A6061R1.6x38.1-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 400 },
+        { code: "A6061R1.6x42-5.8", unit: "Pcs", capacitySaw: 225, capacityBlade: 400 },
+        { code: "A6061R1.6x44-5.8", unit: "Pcs", capacitySaw: 212, capacityBlade: 400 },
+        { code: "A6061R1.8x16-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "A6061R1.8x19-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "A6061R1.8x22.2-5.8", unit: "Pcs", capacitySaw: 400, capacityBlade: 720 },
+        { code: "A6061R1.8x25.4-5.8", unit: "Pcs", capacitySaw: 360, capacityBlade: 450 },
+        { code: "A6061R1.8x27-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 400 },
+        { code: "A6061R1.8x28.6-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 400 },
+        { code: "A6061R1.8x31.8-5.8", unit: "Pcs", capacitySaw: 189, capacityBlade: 360 },
+        { code: "A6061R1.8x34.9-5.8", unit: "Pcs", capacitySaw: 277, capacityBlade: 360 },
+        { code: "A6061R1.8x38.1-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 360 },
+        { code: "A6061R1.8x42-5.8", unit: "Pcs", capacitySaw: 225, capacityBlade: 327 },
+        { code: "A6061R1.8x44-5.8", unit: "Pcs", capacitySaw: 212, capacityBlade: 327 },
+        { code: "A6061R1.8x48-5.8", unit: "Pcs", capacitySaw: 212, capacityBlade: 327 },
+        { code: "A6061R1.8x50.8-5.8", unit: "Pcs", capacitySaw: 200, capacityBlade: 300 },
+        { code: "A6061R2.2x22.2-5.8", unit: "Pcs", capacitySaw: 360, capacityBlade: 450 },
+        { code: "A6061R2.2x28.6-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 400 },
+        { code: "A6061R2.2x31.8-5.8", unit: "Pcs", capacitySaw: 327, capacityBlade: 400 },
+        { code: "A6061R2.2x34.9-5.8", unit: "Pcs", capacitySaw: 225, capacityBlade: 360 },
+        { code: "A6061R2.2x38.1-5.8", unit: "Pcs", capacitySaw: 360, capacityBlade: 450 },
+        { code: "A6061R2.2x50.8-5.8", unit: "Pcs", capacitySaw: 164, capacityBlade: 360 },
+        { code: "A6061RS1.6x34.9-2.9", unit: "Pcs", capacitySaw: 277, capacityBlade: 450 },
+        { code: "A6061RS2.0x34.9-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 450 },
+        { code: "A6061RS2.2x31.8-2.9", unit: "Pcs", capacitySaw: 327, capacityBlade: 400 },
+        { code: "A6061RS2.2x31.8-5.8", unit: "Pcs", capacitySaw: 327, capacityBlade: 400 },
+        { code: "A6061RS2.2x34.9-2.9", unit: "Pcs", capacitySaw: 225, capacityBlade: 327 },
+        { code: "A6061RS2.2x34.9-5.8", unit: "Pcs", capacitySaw: 225, capacityBlade: 327 },
+        { code: "A6061RS3.5x50-2.9", unit: "Pcs", capacitySaw: 80, capacityBlade: 80 },
+        { code: "A6061RS3.8x37-2.9", unit: "Pcs", capacitySaw: 144, capacityBlade: 144 },
+        { code: "A6061RS3.8x37-5.8", unit: "Pcs", capacitySaw: 144, capacityBlade: 144 },
+        { code: "A6061RS3.8x41-2.9", unit: "Pcs", capacitySaw: 116, capacityBlade: 116 },
+        { code: "A6061RS4.7x43-2.9", unit: "Pcs", capacitySaw: 103, capacityBlade: 103 },
+        { code: "A6061RS4.7x43-5.8", unit: "Pcs", capacitySaw: 103, capacityBlade: 103 },
+        { code: "A6061RS4.7x50-2.9", unit: "Pcs", capacitySaw: 80, capacityBlade: 80 },
+        { code: "A6061RS4.7x60-2.9", unit: "Pcs", capacitySaw: 72, capacityBlade: 72 },
+        { code: "A6061RS4.7x60-5.8", unit: "Pcs", capacitySaw: 72, capacityBlade: 72 },
+        { code: "A6061S1.6x23x17-5.8", unit: "Pcs", capacitySaw: 514, capacityBlade: 0 },
+        { code: "A6061S1.6x37x40-5.8", unit: "Pcs", capacitySaw: 200, capacityBlade: 0 },
+        { code: "A6061S1.6x48.01x53.01-5.8", unit: "Pcs", capacitySaw: 164, capacityBlade: 0 },
+        { code: "A6061S1.8x28x17-2.9", unit: "Pcs", capacitySaw: 450, capacityBlade: 0 },
+        { code: "SPCCR1.2x14-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "SPCCR1.2x16-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "SPCCR1.2x19.1-5.8", unit: "Pcs", capacitySaw: 450, capacityBlade: 720 },
+        { code: "SPCCR1.2x22.2-5.8", unit: "Pcs", capacitySaw: 400, capacityBlade: 600 },
+        { code: "SPCCR1.2x25.4-5.8", unit: "Pcs", capacitySaw: 360, capacityBlade: 600 },
+        { code: "SPCCR1.2x28.6-5.8", unit: "Pcs", capacitySaw: 360, capacityBlade: 450 },
+        { code: "SPCCR1.2x31.8-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 360 },
+        { code: "SPCCR1.2x34-5.8", unit: "Pcs", capacitySaw: 257, capacityBlade: 327 },
+        { code: "SPCCR1.2x38.1-5.8", unit: "Pcs", capacitySaw: 257, capacityBlade: 327 },
+        { code: "SPCCR1.2x42-5.8", unit: "Pcs", capacitySaw: 277, capacityBlade: 360 },
+        { code: "SPCCR1.2x44.5-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 327 },
+        { code: "SPCCR1.2x50.8-5.8", unit: "Pcs", capacitySaw: 200, capacityBlade: 360 },
+        { code: "SPCCR1.4x14-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 450 },
+        { code: "SPCCR1.4x25.4-5.8", unit: "Pcs", capacitySaw: 257, capacityBlade: 360 },
+        { code: "SPCCR1.4x28.6-5.8", unit: "Pcs", capacitySaw: 240, capacityBlade: 360 },
+        { code: "SPCCR1.4x31.8-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 327 },
+        { code: "SPCCR1.4x34-5.8", unit: "Pcs", capacitySaw: 277, capacityBlade: 327 },
+        { code: "SPCCR1.4x38.1-5.8", unit: "Pcs", capacitySaw: 300, capacityBlade: 327 },
+        { code: "SPCCR1.4x50.8-5.8", unit: "Pcs", capacitySaw: 277, capacityBlade: 300 }
       ];
 
       // Item types for the new column
@@ -731,9 +826,10 @@
 
       // Global variables
       let rowCounter = 0;
-      let hoursPerDay = 12;
+      let hoursPerDay = 8; // Updated default to match initial selection
       let currentLanguage = "en";
-      let cachedTotalHours = 0; // Cache for total hours to avoid recalculating
+      let totalSawHours = 0;
+      let totalBladeHours = 0;
 
       // Format current date and time
       function formatDateTime() {
@@ -752,13 +848,11 @@
       function setLanguage(lang) {
         currentLanguage = lang;
         
-        // Update language buttons
         document.querySelectorAll('.lang-btn').forEach(btn => {
           btn.classList.remove('active');
         });
         document.getElementById(`lang${lang === 'en' ? 'En' : 'Bn'}`).classList.add('active');
         
-        // Update all text elements
         document.querySelectorAll('[data-en], [data-bn]').forEach(el => {
           if (lang === 'en') {
             el.textContent = el.getAttribute('data-en');
@@ -766,6 +860,37 @@
             el.textContent = el.getAttribute('data-bn');
           }
         });
+      }
+
+      // Recalculate hours for a single row
+      function recalcRowHours(row) {
+        const mcStatus = row.querySelector('.mc-select').value;
+        const capacity = mcStatus === 'Saw' ? 
+                         parseFloat(row.dataset.capacitySaw) : 
+                         parseFloat(row.dataset.capacityBlade);
+        const pcsInput = row.querySelector('.pcs-input');
+        const quantity = parseFloat(pcsInput.value) || 0;
+
+        let hours = '0.00';
+        if (quantity > 0 && capacity > 0) {
+          hours = (quantity / capacity).toFixed(2);
+        } else if (quantity > 0 && capacity <= 0) {
+          hours = 'N/A';
+        }
+
+        row.querySelector('.hours-cell').textContent = hours;
+      }
+
+      // Update capacity display based on MC status
+      function updateCapacityDisplay(row) {
+        const mcStatus = row.querySelector('.mc-select').value;
+        const capacityCell = row.querySelector('.capacity-cell');
+        
+        if (mcStatus === 'Saw') {
+          capacityCell.textContent = row.dataset.capacitySaw;
+        } else {
+          capacityCell.textContent = row.dataset.capacityBlade;
+        }
       }
 
       // Create a single table row
@@ -813,7 +938,6 @@
                 </td>
             `;
 
-        // Add event listeners to the new elements
         row
           .querySelector(".item-select")
           .addEventListener("change", handleItemChange);
@@ -851,8 +975,8 @@
         const itemTypeSelect = row.querySelector(".item-type-select");
         const unitCell = row.querySelector(".unit-cell");
         const capacityCell = row.querySelector(".capacity-cell");
-        const hoursCell = row.querySelector(".hours-cell");
         const pcsInput = row.querySelector(".pcs-input");
+        const mcSelect = row.querySelector(".mc-select");
 
         const selectedItem = items.find(
           (item) => item.code === itemSelect.value
@@ -860,45 +984,53 @@
         const quantity = parseFloat(pcsInput.value) || 0;
 
         if (selectedItem) {
+          row.dataset.capacitySaw = selectedItem.capacitySaw;
+          row.dataset.capacityBlade = selectedItem.capacityBlade;
+          
           unitCell.textContent = selectedItem.unit;
-          capacityCell.textContent = selectedItem.capacity;
-          const hours =
-            quantity > 0
-              ? (quantity / selectedItem.capacity).toFixed(2)
-              : "0.00";
-          hoursCell.textContent = hours;
+          
+          if (selectedItem.capacityBlade === 0 || selectedItem.capacityBlade === "Not use") {
+            const bladeOption = mcSelect.querySelector('option[value="Blade"]');
+            bladeOption.disabled = true;
+            
+            if (mcSelect.value === "Blade") {
+              mcSelect.value = "Saw";
+            }
+          } else {
+            const bladeOption = mcSelect.querySelector('option[value="Blade"]');
+            bladeOption.disabled = false;
+          }
+          
+          updateCapacityDisplay(row);
+          
+          recalcRowHours(row);
         } else {
+          delete row.dataset.capacitySaw;
+          delete row.dataset.capacityBlade;
           unitCell.textContent = "-";
           capacityCell.textContent = "-";
-          hoursCell.textContent = "0.00";
+          row.querySelector(".hours-cell").textContent = "0.00";
+          
+          const bladeOption = mcSelect.querySelector('option[value="Blade"]');
+          bladeOption.disabled = false;
         }
 
         calculateTotal();
+        updateSummaryTable();
       }
 
       // Handle input changes (pieces or MC status)
       function handleInputChange(e) {
         const row = e.target.closest("tr");
-        const itemSelect = row.querySelector(".item-select");
-        const hoursCell = row.querySelector(".hours-cell");
-        const pcsInput = row.querySelector(".pcs-input");
-
-        const selectedItem = items.find(
-          (item) => item.code === itemSelect.value
-        );
-        const quantity = parseFloat(pcsInput.value) || 0;
-
-        if (selectedItem) {
-          const hours =
-            quantity > 0
-              ? (quantity / selectedItem.capacity).toFixed(2)
-              : "0.00";
-          hoursCell.textContent = hours;
-        } else {
-          hoursCell.textContent = "0.00";
+        
+        if (e.target.classList.contains('mc-select')) {
+          updateCapacityDisplay(row);
         }
-
+        
+        recalcRowHours(row);
+        
         calculateTotal();
+        updateSummaryTable();
       }
 
       // Delete a row
@@ -907,19 +1039,21 @@
         if (row) {
           row.remove();
           calculateTotal();
+          updateSummaryTable();
         }
       }
 
-      // Calculate total hours and days
+      // Calculate total hours, days, and utilization
       function calculateTotal() {
-        let sawHours = 0;
-        let bladeHours = 0;
+        totalSawHours = 0;
+        totalBladeHours = 0;
         let itemCount = 0;
 
         document.querySelectorAll(".hours-cell").forEach((cell) => {
           const row = cell.closest("tr");
           const mcStatus = row.querySelector(".mc-select").value;
-          const hours = parseFloat(cell.textContent) || 0;
+          const hoursText = cell.textContent;
+          const hours = hoursText === 'N/A' ? 0 : parseFloat(hoursText) || 0;
           const pcsInput = row.querySelector(".pcs-input");
           const pcsValue = parseFloat(pcsInput.value) || 0;
 
@@ -928,50 +1062,84 @@
           }
 
           if (mcStatus === "Saw") {
-            sawHours += hours;
+            totalSawHours += hours;
           } else if (mcStatus === "Blade") {
-            bladeHours += hours;
+            totalBladeHours += hours;
           }
         });
 
-        cachedTotalHours = sawHours + bladeHours;
-        document.getElementById("totalHours").textContent = cachedTotalHours.toFixed(2);
-        updateDaysCalculation();
-      }
+        const totalHours = totalSawHours + totalBladeHours;
+        document.getElementById("totalHours").textContent = totalHours.toFixed(2);
+        document.getElementById("recentItems").textContent = itemCount;
 
-      // Update days calculation separately
-      function updateDaysCalculation() {
-        const sawBladeMC =
-          parseInt(document.getElementById("sawBladeMC").value) || 0;
-        const diskBladeMC =
-          parseInt(document.getElementById("diskBladeMC").value) || 0;
+        const sawBladeMC = parseInt(document.getElementById("sawBladeMC").value) || 0;
+        const diskBladeMC = parseInt(document.getElementById("diskBladeMC").value) || 0;
+
+        const sawUtilization = sawBladeMC > 0 ? (totalSawHours / sawBladeMC).toFixed(2) : '0.00';
+        const bladeUtilization = diskBladeMC > 0 ? (totalBladeHours / diskBladeMC).toFixed(2) : '0.00';
+
+        const sawDays = sawBladeMC > 0 && hoursPerDay > 0 ? (totalSawHours / sawBladeMC / hoursPerDay).toFixed(2) : '0.00';
+        const bladeDays = diskBladeMC > 0 && hoursPerDay > 0 ? (totalBladeHours / diskBladeMC / hoursPerDay).toFixed(2) : '0.00';
+
+        document.getElementById('sawUtilization').textContent = sawUtilization;
+        document.getElementById('bladeUtilization').textContent = bladeUtilization;
+        document.getElementById('sawDays').textContent = sawDays;
+        document.getElementById('bladeDays').textContent = bladeDays;
+
+        const sawProgress = sawBladeMC > 0 ? Math.min(100, (parseFloat(sawDays) / 10) * 100) : 0;
+        const bladeProgress = diskBladeMC > 0 ? Math.min(100, (parseFloat(bladeDays) / 10) * 100) : 0;
+        document.getElementById('sawProgress').style.width = `${sawProgress}%`;
+        document.getElementById('bladeProgress').style.width = `${bladeProgress}%`;
+
+        const effectiveTotalDays = Math.max(parseFloat(sawDays), parseFloat(bladeDays)).toFixed(2);
+        document.getElementById("totalDays").textContent = effectiveTotalDays;
+
         const totalMC = sawBladeMC + diskBladeMC;
-        const totalDays =
-          totalMC > 0 && hoursPerDay > 0
-            ? (cachedTotalHours / (totalMC * hoursPerDay)).toFixed(2)
-            : "0.00";
-        document.getElementById("totalDays").textContent = totalDays;
-
-        // Update summary
-        document.getElementById("summaryHours").textContent = cachedTotalHours.toFixed(2);
-        document.getElementById("summaryDays").textContent = totalDays;
-        document.getElementById("recentItems").textContent = document.querySelectorAll('.pcs-input').length;
-
-        // Update progress bars
-        const hoursProgress = Math.min(100, (cachedTotalHours / 100) * 100);
-        const daysProgress = Math.min(100, (totalDays / 10) * 100);
-        document.getElementById("hoursProgress").style.width = `${hoursProgress}%`;
-        document.getElementById("daysProgress").style.width = `${daysProgress}%`;
-
-        // Update recent calculations
         document.getElementById("recentMachines").textContent = totalMC;
         document.getElementById("lastUpdated").textContent = formatDateTime();
+      }
+
+      // Update summary table
+      function updateSummaryTable() {
+        const summaryBody = document.getElementById("summaryBody");
+        summaryBody.innerHTML = "";
+        let hasItems = false;
+        
+        document.querySelectorAll("#tableBody tr").forEach(row => {
+          const itemSelect = row.querySelector(".item-select");
+          const itemTypeSelect = row.querySelector(".item-type-select");
+          const mcSelect = row.querySelector(".mc-select");
+          const pcsInput = row.querySelector(".pcs-input");
+          const hoursCell = row.querySelector(".hours-cell");
+          const capacityCell = row.querySelector(".capacity-cell");
+          
+          if (itemSelect.value && pcsInput.value && parseFloat(pcsInput.value) > 0) {
+            hasItems = true;
+            const summaryRow = document.createElement("tr");
+            summaryRow.className = "table-row";
+            
+            const itemType = itemTypeSelect.value || 'N/A';
+            
+            summaryRow.innerHTML = `
+              <td class="p-3">${itemType}</td>
+              <td class="p-3">${itemSelect.value}</td>
+              <td class="p-3 text-center">${mcSelect.value}</td>
+              <td class="p-3 text-center">${capacityCell.textContent}</td>
+              <td class="p-3 text-center">${pcsInput.value}</td>
+              <td class="p-3 text-center font-semibold">${hoursCell.textContent}</td>
+            `;
+            summaryBody.appendChild(summaryRow);
+          }
+        });
+        
+        document.getElementById("summarySection").style.display = hasItems ? "block" : "none";
       }
 
       // Add a new row
       function addRow() {
         const tableBody = document.getElementById("tableBody");
         tableBody.appendChild(createTableRow());
+        updateSummaryTable();
       }
 
       // Reset all rows
@@ -982,8 +1150,10 @@
           document.getElementById("totalDays").textContent = "0.00";
           document.getElementById("sawBladeMC").value = "3";
           document.getElementById("diskBladeMC").value = "0";
-          cachedTotalHours = 0;
-          updateDaysCalculation();
+          totalSawHours = 0;
+          totalBladeHours = 0;
+          calculateTotal();
+          updateSummaryTable();
         }
       }
 
@@ -1000,63 +1170,50 @@
         }
 
         input.value = value;
-        updateDaysCalculation();
+        calculateTotal();
       }
 
-      // Handle hours per day selection - OPTIMIZED
+      // Handle hours per day selection
       function selectHoursPerDay(e) {
         if (!e.target.classList.contains("hour-option")) return;
 
-        // Check if this is the already selected option
         if (e.target.classList.contains("selected")) return;
 
-        // Remove selected class from all options
         document.querySelectorAll(".hour-option").forEach((option) => {
           option.classList.remove("selected");
         });
 
-        // Add selected class to clicked option
         e.target.classList.add("selected");
 
-        // Update hours per day
         hoursPerDay = parseInt(e.target.getAttribute("data-hours"));
 
-        // Update label
         document.getElementById("hoursPerDayLabel").textContent = hoursPerDay;
         document.getElementById("summaryHoursPerDay").textContent = hoursPerDay;
 
-        // Update days calculation only (no need to recalc total hours)
-        updateDaysCalculation();
+        calculateTotal();
       }
 
       // Initialize on load
       document.addEventListener("DOMContentLoaded", () => {
         populateTable(5);
         calculateTotal();
+        updateSummaryTable();
 
-        // Add event listeners to buttons
         document.getElementById("addRowBtn").addEventListener("click", addRow);
         document.getElementById("resetBtn").addEventListener("click", resetAll);
-        document
-          .getElementById("sawBladeMC")
-          .addEventListener("input", updateDaysCalculation);
-        document
-          .getElementById("diskBladeMC")
-          .addEventListener("input", updateDaysCalculation);
+        document.getElementById("sawBladeMC").addEventListener("input", calculateTotal);
+        document.getElementById("diskBladeMC").addEventListener("input", calculateTotal);
 
-        // Add event listeners to counter buttons
         document
           .querySelectorAll(".increment-btn, .decrement-btn")
           .forEach((btn) => {
             btn.addEventListener("click", handleCounterButton);
           });
 
-        // Add event listener to hours per day selector
         document
           .getElementById("hoursPerDaySelector")
           .addEventListener("click", selectHoursPerDay);
           
-        // Language toggle
         document.getElementById('langEn').addEventListener('click', () => setLanguage('en'));
         document.getElementById('langBn').addEventListener('click', () => setLanguage('bn'));
       });
